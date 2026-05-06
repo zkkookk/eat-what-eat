@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Read</title>
+<title>在线文档阅读器</title>
 <style>
   body {
     font-family: "苹方", sans-serif;
@@ -14,7 +14,7 @@
     -webkit-user-select: none;
     -webkit-touch-callout: none;
   }
-  /* 首行缩进 */
+  /* 取消首行缩进 */
   #reader {
     white-space: pre-wrap; margin-top: 10px;text-indent: 2em;
   }
@@ -67,7 +67,7 @@
 <body>
 
 <h2>文档阅读器</h2>
-<label for="fileInput" style="background:#f0c14b;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:13px;">选择本地文档</label>
+<label for="fileInput" style="background:#f0c14b;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:13px;">选择</label>
 <input type="file" id="fileInput" accept=".txt,.docx">
 
 <div id="reader">请选择 TXT 或 DOCX 文档开始阅读...</div>
@@ -80,10 +80,11 @@
 <div id="controls">
   <button id="inc">A+</button>
   <button id="dec">A-</button>
-  <button id="bg">背景切换</button>
-  <button id="night">夜间模式</button>
+  <button id="bg">背景</button>
+  <button id="night">夜间</button>
   <button id="toggleTOC">目录</button>
-  <button id="modeToggle">切换翻页模式</button>
+  <button id="modeToggle">翻页</button>
+  <button id="hideCtrl">-</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
@@ -327,7 +328,18 @@ function savePagePos(){
     localStorage.setItem('page_'+currentFileName, currentPage);
   }
 }
-
+  
+// 手动隐藏/显示控制栏
+document.getElementById('hideCtrl').onclick = function(){
+    if(controls.style.opacity === '0'){
+        controls.style.opacity = '1';
+        this.innerText = '隐藏栏';
+    }else{
+        controls.style.opacity = '0';
+        this.innerText = '显示栏';
+    }
+};
+  
 // 恢复阅读位置
 function restoreScroll() { 
   if(currentFileName) { 
