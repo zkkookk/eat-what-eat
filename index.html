@@ -1,164 +1,145 @@
 <!DOCTYPE html>
-
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>在线文档阅读器</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Read</title>
 <style>
-  body {
-    font-family: "苹方", sans-serif;
-    margin: 0; padding: 15px;
-    font-size: 16px; line-height: 1.9;
-    background-color: #fffbe6; color: #333;
-    -webkit-font-smoothing: antialiased;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-  }
-  #reader {
-    white-space: pre-wrap; margin-top: 10px; text-indent: 2em;
-  }
-  #controls {
-    position: fixed; bottom: 10px; left: 10px; right: 10px;
-    display: flex; justify-content: space-between; gap: 6px;
-    transition: opacity 0.3s;
-    font-size: 13px;
-  }
-  #progress {
-    position: fixed; top: 5px; right: 10px; font-size: 14px; color: #666;
-  }
-  #toc {
-    position: fixed; right: 5px; top: 50px; background: #fffbe6;
-    border: 1px solid #ccc; padding: 10px;
-    max-height: 80%; overflow-y: auto; z-index: 1000;
-    display: none;
-  }
-  #toc span { display: block; cursor: pointer; margin-bottom: 5px; }
-  button {
-    padding: 5px 10px; border-radius: 4px; border: none;
-    background: #f0c14b; color: #000; font-size: 13px;
-  }
-  input[type="file"] { display: none; }
+:root{--bg:#fff;--text:#000}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system;overflow:hidden}
+.dark{--bg:#111;--text:#eee}
+#reader{height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;box-sizing:border-box}
+.page{max-width:700px;line-height:1.8;font-size:18px;transition:transform .3s}
+
+/* 翻页动画 */
+.page.slide-left{transform:translateX(-100%);opacity:0}
+.page.slide-right{transform:translateX(100%);opacity:0}
+
+/* 顶部阅读进度 */
+#progress{
+ position:fixed;
+ top:0;
+ left:0;
+ right:0;
+ text-align:center;
+ font-size:12px;
+ padding-top:env(safe-area-inset-top);
+ color:rgba(255,255,255,0.7);
+ pointer-events:none;
+}
+.dark #progress{color:rgba(255,255,255,0.7)}
+
+#menu{position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.5);backdrop-filter:blur(10px);color:#fff;padding:10px;display:flex;flex-wrap:wrap;transform:translateY(100%);transition:.3s}
+#menu.show{transform:translateY(0)}
+button,input{margin:5px}
 </style>
 </head>
 <body>
 
-<h2>文档阅读器</h2>
-<label for="fileInput" style="background:#f0c14b;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:13px;">选择本地文档</label>
-<input type="file" id="fileInput" accept=".txt,.docx">
-<div id="reader">请选择 TXT 或 DOCX 文档开始阅读...</div>
-<div id="toc"></div>
-<div id="progress">0%</div>
-<div id="controls">
-  <button id="inc">A+</button>
-  <button id="dec">A-</button>
-  <button id="bg">背景切换</button>
-  <button id="night">夜间模式</button>
-  <button id="toggleTOC">目录</button>
+<input type="file" id="fileInput" accept=".txt" style="position:fixed;top:10px;left:10px;z-index:10">
+<div id="progress"></div>
+<div id="reader"><div class="page" id="page"></div></div>
+
+<div id="menu">
+<button onclick="toggleMode()">夜间</button>
+字体<input type="range" min="14" max="30" onchange="setFont(this.value)">
+行距<input type="range" min="1.2" max="3" step="0.1" onchange="setLine(this.value)">
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
-
 <script>
-let currentFileName = null;
-const readerDiv = document.getElementById('reader');
-const fileInput = document.getElementById('fileInput');
-const toc = document.getElementById('toc');
+let content='',pages=[],currentPage=0,fontSize=18,lineHeight=1.8,bookName='';
+const pageEl=document.getElementById('page');
+const progressEl=document.getElementById('progress');
 
-// 目录显示/隐藏按钮
-document.getElementById('toggleTOC').onclick = () => {
-  if(toc.style.display === 'none' || toc.style.display === '') {
-    toc.style.display = 'block';
-  } else {
-    toc.style.display = 'none';
-  }
-};
-
-function generateTOC(text) {
-  toc.innerHTML = '';
-  toc.style.display = 'block';
-
-  let modifiedText = text;
-  const chapterRegex = /^\s*(第[一二三四五六七八九十0-9]+章.*|章节[一二三四五六七八九十0-9].*)/gm;
-  let match;
-  let index = 0;
-  while((match = chapterRegex.exec(text)) !== null) {
-    const anchorId = 'chapter' + index;
-    const chapterTitle = match[0];
-    // 在正文中插入 span 锚点
-    modifiedText = modifiedText.replace(chapterTitle, `<span id='${anchorId}'>${chapterTitle}</span>`);
-
-    const span = document.createElement('span');
-    span.textContent = chapterTitle.trim();
-    span.style.display='block';
-    span.style.cursor='pointer';
-    span.style.marginBottom='5px';
-    span.onclick = () => {
-      const target = document.getElementById(anchorId);
-      if(target) window.scrollTo({top: target.offsetTop, behavior: 'smooth'});
-    };
-    toc.appendChild(span);
-    index++;
-  }
-
-  readerDiv.innerHTML = modifiedText;
+fileInput.onchange=e=>{
+ const file=e.target.files[0];
+ bookName=file.name.replace('.txt','');
+ const reader=new FileReader();
+ reader.onload=()=>{content=reader.result;paginate();loadProgress();render();}
+ reader.readAsText(file,'utf-8');
 }
 
-fileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if(!file) return;
-  currentFileName = file.name;
-  if(file.name.endsWith('.txt')) {
-    const fr = new FileReader();
-    fr.onload = ()=> {
-      generateTOC(fr.result);
-      restoreScroll();
-    };
-    fr.readAsText(file, 'utf-8');
-  } else if(file.name.endsWith('.docx')) {
-    const fr = new FileReader();
-    fr.onload = () => {
-      mammoth.extractRawText({arrayBuffer: fr.result})
-        .then(res => { generateTOC(res.value); restoreScroll(); })
-        .catch(()=> alert('DOCX 解析失败'));
-    };
-    fr.readAsArrayBuffer(file);
-  } else alert('只支持 TXT/DOCX');
+function paginate(){
+ pages=[];
+ const temp=document.createElement('div');
+ temp.style.position='absolute';temp.style.visibility='hidden';
+ temp.style.width=pageEl.clientWidth+'px';
+ temp.style.fontSize=fontSize+'px';
+ temp.style.lineHeight=lineHeight;
+ document.body.appendChild(temp);
+
+ let text=content.split(/\n+/),pageText='';
+ text.forEach(line=>{
+  let test=pageText+'<p>'+line+'</p>';
+  temp.innerHTML=test;
+  if(temp.offsetHeight>window.innerHeight*0.9){
+   pages.push(pageText);
+   pageText='<p>'+line+'</p>';
+  }else pageText=test;
+ });
+ pages.push(pageText);
+ document.body.removeChild(temp);
+}
+
+function updateProgress(){
+ if(pages.length===0) return;
+ let percent=Math.floor((currentPage+1)/pages.length*100);
+ progressEl.textContent = percent + '%';
+}
+
+function render(dir){
+ if(dir==='next') pageEl.classList.add('slide-left');
+ if(dir==='prev') pageEl.classList.add('slide-right');
+
+ setTimeout(()=>{
+  pageEl.classList.remove('slide-left','slide-right');
+  pageEl.innerHTML=pages[currentPage]||'';
+  updateProgress();
+ },150);
+ saveProgress();
+}
+
+function nextPage(){
+ if(currentPage<pages.length-1){currentPage++;render('next');}
+}
+function prevPage(){
+ if(currentPage>0){currentPage--;render('prev');}
+}
+
+// 点击区域
+document.body.addEventListener('click',e=>{
+ const x=e.clientX,w=window.innerWidth;
+ if(x<w*0.3) prevPage();
+ else if(x>w*0.7) nextPage();
+ else toggleMenu();
 });
 
-// 字体调节
-const body = document.body;
-document.getElementById('inc').onclick = ()=> {
-  body.style.fontSize = (parseInt(getComputedStyle(body).fontSize) + 2) + 'px';
-  document.querySelectorAll('button, label').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)+2+'px');
-};
-document.getElementById('dec').onclick = ()=> {
-  body.style.fontSize = (parseInt(getComputedStyle(body).fontSize) - 2) + 'px';
-  document.querySelectorAll('button, label').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)-2+'px');
-};
+// 滑动支持
+let startX=0;
+document.body.addEventListener('touchstart',e=>startX=e.touches[0].clientX);
+document.body.addEventListener('touchend',e=>{
+ let dx=e.changedTouches[0].clientX-startX;
+ if(dx>50) prevPage();
+ if(dx<-50) nextPage();
+});
 
-// 背景切换
-let bgIndex = 0;
-const backgrounds = ['#fffbe6','#ffffff'];
-document.getElementById('bg').onclick = ()=> { bgIndex = (bgIndex+1) % backgrounds.length; body.style.backgroundColor = backgrounds[bgIndex]; body.style.color='#333'; };
+function toggleMenu(){menu.classList.toggle('show')}
 
-// 夜间模式
-let night = false;
-document.getElementById('night').onclick = ()=> { night=!night; if(night) { body.style.backgroundColor='#1c1c1c'; body.style.color='#ddd'; } else { body.style.backgroundColor=backgrounds[bgIndex]; body.style.color='#333'; } };
+function toggleMode(){
+ document.body.classList.toggle('dark');
+ localStorage.setItem('dark',document.body.classList.contains('dark'));
+}
+function setFont(v){fontSize=v;localStorage.setItem('font',v);paginate();render()}
+function setLine(v){lineHeight=v;localStorage.setItem('line',v);paginate();render()}
 
-// 显示阅读百分比
-const progressDiv = document.getElementById('progress');
-window.addEventListener('scroll', ()=> { const percent = Math.min(100, Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100)); progressDiv.innerText = percent + '%'; });
+function saveProgress(){localStorage.setItem('page_'+bookName,currentPage)}
+function loadProgress(){let p=localStorage.getItem('page_'+bookName);if(p)currentPage=parseInt(p)}
 
-// 滚动隐藏工具栏
-const controls = document.getElementById('controls');
-let hideTimeout;
-window.addEventListener('scroll', ()=> { controls.style.opacity = '0'; clearTimeout(hideTimeout); hideTimeout = setTimeout(()=> { controls.style.opacity='1'; }, 1000); });
-
-// 保存和恢复阅读位置
-let scrollSaveTimeout;
-window.addEventListener('scroll', () => { clearTimeout(scrollSaveTimeout); scrollSaveTimeout = setTimeout(() => { if(currentFileName) { localStorage.setItem('scrollPos_' + currentFileName, window.scrollY); } }, 500); });
-function restoreScroll() { if(currentFileName) { const pos = localStorage.getItem('scrollPos_' + currentFileName); if(pos) window.scrollTo(0, parseInt(pos)); } }
+window.onload=()=>{
+ if(localStorage.getItem('dark')==='true')document.body.classList.add('dark');
+ if(localStorage.getItem('font'))fontSize=localStorage.getItem('font');
+ if(localStorage.getItem('line'))lineHeight=localStorage.getItem('line');
+}
 </script>
 
 </body>
