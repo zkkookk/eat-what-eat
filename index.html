@@ -6,13 +6,14 @@
 <title>在线文档阅读器</title>
 <style>
   body {
-    font-family: "苹方", sans-serif;
+    font-family: "苹方", "PingFang SC", "Microsoft YaHei", sans-serif;
     margin: 0; padding: 15px;
     font-size: 16px; line-height: 1.9;
     background-color: #fffbe6; color: #333;
     -webkit-font-smoothing: antialiased;
     -webkit-user-select: none;
     -webkit-touch-callout: none;
+    transition: background-color 0.4s, color 0.4s;
   }
   
   /* 当进入翻页模式时，彻底锁死屏幕，接管排版 */
@@ -21,12 +22,10 @@
     overflow: hidden; 
   }
 
-  /* 取消首行缩进与平滑过渡 */
-  body { transition: background-color 0.4s, color 0.4s; }
-  #reader { white-space: pre-wrap; margin-top: 10px; text-indent: 2em; }
-  
   /* 顶部标题与按钮排版 */
-  .header-area { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .header-area { 
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; 
+  }
   .header-area h2 { margin: 0; font-size: 1.5em; font-weight: 600; color: inherit; }
   #fileLabel {
     background: #f0c14b; color: #333; padding: 8px 18px; 
@@ -44,6 +43,11 @@
   #pageInfo { left: 20px; }
   #progress { right: 20px; }
 
+  /* 取消首行缩进 */
+  #reader {
+    white-space: pre-wrap; margin-top: 10px; text-indent: 2em;
+  }
+
   /* 现代化毛玻璃控制面板 */
   #controls {
     position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
@@ -57,7 +61,6 @@
     padding: 8px 14px; border-radius: 20px; cursor: pointer; transition: all 0.2s;
   }
   #controls button:hover { background: rgba(0,0,0,0.05); color: #000; }
-  /* 面板内部的分割线 */
   .divider { width: 1px; height: 18px; background: rgba(0,0,0,0.1); margin: 0 5px; }
 
   /* 目录侧边栏美化 */
@@ -68,8 +71,8 @@
     padding: 20px; overflow-y: auto; z-index: 1000; display: none; transition: all 0.3s ease;
   }
   #toc span { 
-    padding: 10px 12px; border-radius: 8px; transition: all 0.2s;
-    font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.03); color: #555;
+    display: block; cursor: pointer; padding: 10px 12px; border-radius: 8px; transition: all 0.2s;
+    font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.03); color: #555; margin-bottom: 5px;
   }
   #toc span:hover { background: rgba(0,0,0,0.04); padding-left: 18px; color: #000; }
 
@@ -78,29 +81,41 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
 
-  /* 重新分配点击热区比例 */
+  /* === 全新的翻页模式样式 === */
+  #pageReader {
+    width: 100%; position: relative; display: none;
+  }
+  #pageModeWrapper {
+    width: calc(100% - 30px); margin: 0 auto; overflow: hidden; 
+  }
+  #pageContent {
+    height: 100%; column-gap: 20px; column-fill: auto;
+    transition: transform 0.3s ease-out; text-align: justify; word-break: break-word;
+  }
+  
+  /* === 章节排版样式 === */
+  .chapter-head {
+    break-before: column; 
+    -webkit-column-break-before: always;
+    font-weight: bold; font-size: 1.15em; margin-top: 0 !important; 
+  }
+  #pageContent .chapter-head:first-of-type {
+    break-before: auto; -webkit-column-break-before: auto;
+  }
+
+  /* 翻页与隐藏UI点击区域 */
+  .click-zone {
+    position: absolute; top: 0; bottom: 0; z-index: 10; cursor: pointer;
+    -webkit-tap-highlight-color: transparent; 
+  }
   .left-zone { left: 0; width: 35%; }
   .right-zone { right: 0; width: 35%; }
   .center-zone { left: 35%; width: 30%; }
 
   /* === 沉浸式阅读：隐藏 UI 时的状态 === */
-  /* 控制栏向下掉落并消失 */
-  body.ui-hidden #controls { 
-    transform: translate(-50%, 150px) !important; 
-    opacity: 0; 
-    pointer-events: none; 
-  }
-  /* 页码淡出 */
-  body.ui-hidden #pageInfo { 
-    opacity: 0; 
-    pointer-events: none; 
-  }
-  /* 目录隐藏并向右滑出 */
-  body.ui-hidden #toc { 
-    opacity: 0; 
-    pointer-events: none; 
-    transform: translateX(20px); 
-  }
+  body.ui-hidden #controls { transform: translate(-50%, 150px) !important; opacity: 0; pointer-events: none; }
+  body.ui-hidden #pageInfo { opacity: 0; pointer-events: none; }
+  body.ui-hidden #toc { opacity: 0; pointer-events: none; transform: translateX(20px); }
 
   /* === 夜间模式全局适配 === */
   body.night-mode #controls { background: rgba(40, 40, 40, 0.85); border-color: rgba(255,255,255,0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
@@ -111,50 +126,6 @@
   body.night-mode #toc span { border-color: rgba(255,255,255,0.05); color: #aaa; }
   body.night-mode #toc span:hover { background: rgba(255,255,255,0.05); color: #fff; }
   body.night-mode ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
-  
-  /* === 全新的翻页模式样式 === */
-  #pageReader {
-    width: 100%;
-    position: relative;
-    display: none; /* 默认隐藏 */
-  }
-  #pageModeWrapper {
-    width: calc(100% - 30px); /* 左右各留 15px 呼吸空间 */
-    margin: 0 auto; 
-    overflow: hidden; /* 隐藏屏幕右侧未读的列，以及任何垂直溢出 */
-  }
-  #pageContent {
-    height: 100%;
-    column-gap: 20px; /* 两页之间的间距 */
-    column-fill: auto;
-    transition: transform 0.3s ease-out; /* 丝滑的滑动动画 */
-    text-align: justify;
-    word-break: break-word;
-  }
-  /* 翻页透明点击区域 */
-  .click-zone {
-    position: absolute;
-    top: 0; bottom: 0;
-    width: 45%;
-    z-index: 10;
-    cursor: pointer;
-    -webkit-tap-highlight-color: transparent; 
-  }
-  .left-zone { left: 0; }
-  .right-zone { right: 0; }
-  /* === 章节排版样式 === */
-  .chapter-head {
-    break-before: column; /* 核心魔法：遇到这个类，强制从新的一列（页）开始 */
-    -webkit-column-break-before: always;
-    font-weight: bold;
-    font-size: 1.15em;
-    margin-top: 0 !important; /* 保证新页的顶部是对齐的 */
-  }
-  /* 文档的第一个章节不需要强行换页，防止第一页变成白纸 */
-  #pageContent .chapter-head:first-of-type {
-    break-before: auto;
-    -webkit-column-break-before: auto;
-  }
 </style>
 </head>
 <body>
@@ -196,13 +167,15 @@
 <script>
 let currentFileName = null;
 let originFullText = "";
+let parsedHtmlText = ""; 
 
 const readerDiv = document.getElementById('reader');
 const pageReaderDiv = document.getElementById('pageReader');
 const toc = document.getElementById('toc');
 const pageInfo = document.getElementById('pageInfo');
+const body = document.body;
 
-// === 目录功能 ===
+// === 目录功能与防冲突跳转 ===
 document.getElementById('toggleTOC').onclick = () => {
   if(toc.style.display === 'none' || toc.style.display === '') {
     toc.style.display = 'block';
@@ -216,7 +189,6 @@ function generateTOC(text) {
   toc.style.display = 'block';
 
   let modifiedText = text;
-  // 增强版正则：支持"第一章"、"第 1 章"、"第1回"、"第1节"、"Chapter 1" 等更广泛的格式
   const chapterRegex = /^\s*(第[一二三四五六七八九十百千万0-9\s]+[章节卷回].*|^Chapter\s*[0-9]+.*)/gm;
   let match;
   let index = 0;
@@ -225,38 +197,29 @@ function generateTOC(text) {
     const anchorId = 'chapter' + index;
     const chapterTitle = match[0];
     
-    // 把章节标题包裹在 div 中，并加上 chapter-head 类触发强制换页
-    modifiedText = modifiedText.replace(chapterTitle, `<div id='${anchorId}' class='chapter-head'>${chapterTitle}</div>`);
+    modifiedText = modifiedText.replace(chapterTitle, `<div data-chapter='${anchorId}' class='chapter-head'>${chapterTitle}</div>`);
 
     const span = document.createElement('span');
     span.textContent = chapterTitle.trim();
-    span.style.display = 'block';
-    span.style.cursor = 'pointer';
-    span.style.marginBottom = '5px';
     
-    // 点击目录的跳转逻辑
     span.onclick = () => {
-      const target = document.getElementById(anchorId);
+      const target = isPageMode 
+        ? document.querySelector(`#pageContent [data-chapter='${anchorId}']`) 
+        : document.querySelector(`#reader [data-chapter='${anchorId}']`);
+
       if(target) {
-       if(isPageMode) {
-          // 【翻页模式下】获取目标和容器的真实渲染物理边界
+        if(isPageMode) {
           const targetRect = target.getBoundingClientRect();
           const contentRect = document.getElementById('pageContent').getBoundingClientRect();
-          
-          // 计算目标元素距离第一页最左侧的真实像素距离
           const relativeX = targetRect.left - contentRect.left;
           
-          // 除以每次滑动的距离，得出绝对精准的页码
           let targetPage = Math.floor(relativeX / moveDistance);
-          
-          // 防越界保护
           if (targetPage < 0) targetPage = 0;
           if (targetPage >= totalPages) targetPage = totalPages - 1;
           
           currentPage = targetPage;
           updatePageView();
-        }else {
-          // 【滚动模式下】使用传统的滚动跳转
+        } else {
           window.scrollTo({top: target.offsetTop, behavior: 'smooth'});
         }
       }
@@ -266,7 +229,7 @@ function generateTOC(text) {
   }
   return modifiedText;
 }
-  
+
 // === 动态像素级翻页算法 ===
 let isPageMode = false;
 let currentPage = 0;
@@ -277,30 +240,22 @@ function initPagination() {
   const content = document.getElementById('pageContent');
   const wrapper = document.getElementById('pageModeWrapper');
   
-  // 1. 将全文塞入内容区，重置内外边距防止干扰计算
-  content.innerHTML = `<div style="text-indent: 2em; white-space: pre-wrap; margin:0; padding:0;">${originFullText}</div>`;
+  content.innerHTML = `<div style="text-indent: 2em; white-space: pre-wrap; margin:0; padding:0;">${parsedHtmlText}</div>`;
   
-  // 2. 获取屏幕真实可用高度（预留顶部信息栏和底部控制栏空间，各约 30px）
   const safeMargin = 60; 
   const availableHeight = window.innerHeight - safeMargin;
 
-  // 3. 计算实际行高 (line-height)
-  let lh = parseFloat(getComputedStyle(document.body).lineHeight);
+  let lh = parseFloat(getComputedStyle(body).lineHeight);
   if(isNaN(lh)) {
-    // 兼容部分浏览器获取不到绝对值的情况
-    lh = parseInt(getComputedStyle(document.body).fontSize) * 1.9; 
+    lh = parseInt(getComputedStyle(body).fontSize) * 1.9; 
   }
 
-  // 4. 核心魔法：算出最大能容纳的整数行高度，确保卡的正好！
   const perfectHeight = Math.floor(availableHeight / lh) * lh;
-  
   wrapper.style.height = `${perfectHeight}px`;
   
-  // 垂直居中显示阅读区域
   const topOffset = (window.innerHeight - perfectHeight) / 2;
   pageReaderDiv.style.marginTop = `${topOffset}px`;
 
-  // 5. 设置多列排版的宽度与间距
   const wrapperWidth = wrapper.clientWidth;
   const gap = 20; 
   content.style.columnWidth = `${wrapperWidth}px`;
@@ -308,11 +263,9 @@ function initPagination() {
   
   moveDistance = wrapperWidth + gap;
   
-  // 6. 延时等待 DOM 排版完成，精确计算总页数
   setTimeout(() => {
     totalPages = Math.ceil(content.scrollWidth / moveDistance);
     if(totalPages <= 0) totalPages = 1;
-    
     if(currentPage >= totalPages) currentPage = totalPages - 1;
     
     updatePageView();
@@ -326,43 +279,31 @@ function updatePageView() {
   savePagePos();
 }
 
-function goPrevPage() {
-  if (currentPage > 0) {
-    currentPage--;
-    updatePageView();
-  }
-}
-
-function goNextPage() {
-  if (currentPage < totalPages - 1) {
-    currentPage++;
-    updatePageView();
-  }
-}
-
-document.getElementById('prevPageBtn').onclick = goPrevPage;
-document.getElementById('nextPageBtn').onclick = goNextPage;
+document.getElementById('prevPageBtn').onclick = () => { if (currentPage > 0) { currentPage--; updatePageView(); } };
+document.getElementById('nextPageBtn').onclick = () => { if (currentPage < totalPages - 1) { currentPage++; updatePageView(); } };
 
 // === 沉浸式：点击屏幕中央呼出/隐藏 UI ===
 document.getElementById('centerToggleBtn').onclick = () => {
-  document.body.classList.toggle('ui-hidden');
-  
-  // 如果隐藏了 UI，顺手把原本用 display 控制的目录也关掉，防止状态混乱
-  if(document.body.classList.contains('ui-hidden') && toc.style.display === 'block') {
+  body.classList.toggle('ui-hidden');
+  if(body.classList.contains('ui-hidden') && toc.style.display === 'block') {
     toc.style.display = 'none';
   }
 };
 
-// 额外小优化：为了让体验更好，进入翻页模式时，默认自动收起 UI（沉浸模式）
-// 找到原来的 modeToggle 点击事件，在 if(isPageMode){ ... } 里面加上这一句：
-// document.body.classList.add('ui-hidden');
+let resizeTimer;
+window.addEventListener('resize', () => {
+  if(isPageMode && parsedHtmlText) {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => { initPagination(); }, 200); 
+  }
+});
+
+// === 模式切换 ===
 document.getElementById('modeToggle').onclick = ()=>{
   isPageMode = !isPageMode;
   if(isPageMode){
-    document.body.classList.add('page-mode-active'); 
-    
-    // 新增：进入翻页时，默认进入沉浸无 UI 状态
-    document.body.classList.add('ui-hidden'); 
+    body.classList.add('page-mode-active'); 
+    body.classList.add('ui-hidden'); 
     
     document.getElementById('topHeader').style.display = 'none'; 
     document.getElementById('progress').style.display = 'none'; 
@@ -376,51 +317,10 @@ document.getElementById('modeToggle').onclick = ()=>{
     
     initPagination(); 
   }else{
-    document.body.classList.remove('page-mode-active'); 
-    
-    // 新增：退出翻页时，恢复 UI 显示
-    document.body.classList.remove('ui-hidden');
+    body.classList.remove('page-mode-active'); 
+    body.classList.remove('ui-hidden');
     
     document.getElementById('topHeader').style.display = 'flex'; 
-    document.getElementById('progress').style.display = 'block'; 
-    document.getElementById('pageInfo').style.display = 'none'; 
-
-    readerDiv.style.display = 'block';
-    pageReaderDiv.style.display = 'none';
-    restoreScroll();
-  }
-}; 
-
-// === 窗口大小改变时自动重新排版 ===
-let resizeTimer;
-window.addEventListener('resize', () => {
-  if(isPageMode && originFullText) {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(() => {
-      initPagination();
-    }, 200); // 防抖动
-  }
-});
-
-// === 模式切换 ===
-document.getElementById('modeToggle').onclick = ()=>{
-  isPageMode = !isPageMode;
-  if(isPageMode){
-    document.body.classList.add('page-mode-active'); 
-    document.getElementById('topHeader').style.display = 'none'; // 隐藏顶部区域
-    document.getElementById('progress').style.display = 'none'; // 隐藏百分比进度
-    document.getElementById('pageInfo').style.display = 'block'; // 显示页码
-
-    readerDiv.style.display = 'none';
-    pageReaderDiv.style.display = 'block';
-    
-    let savedPage = localStorage.getItem('page_'+currentFileName);
-    if(savedPage) currentPage = parseInt(savedPage);
-    
-    initPagination(); 
-  }else{
-    document.body.classList.remove('page-mode-active'); 
-    document.getElementById('topHeader').style.display = 'flex'; // 恢复顶部区域
     document.getElementById('progress').style.display = 'block'; 
     document.getElementById('pageInfo').style.display = 'none'; 
 
@@ -440,8 +340,8 @@ fileInput.addEventListener('change', (e) => {
     const fr = new FileReader();
     fr.onload = ()=> {
       originFullText = fr.result;
-      let htmlText = generateTOC(originFullText);
-      readerDiv.innerHTML = htmlText;
+      parsedHtmlText = generateTOC(originFullText); 
+      readerDiv.innerHTML = parsedHtmlText;
       restoreScroll();
       if(isPageMode) initPagination();
     };
@@ -452,8 +352,8 @@ fileInput.addEventListener('change', (e) => {
       mammoth.extractRawText({arrayBuffer: fr.result})
         .then(res => { 
           originFullText = res.value;
-          let htmlText = generateTOC(originFullText);
-          readerDiv.innerHTML = htmlText; 
+          parsedHtmlText = generateTOC(originFullText); 
+          readerDiv.innerHTML = parsedHtmlText; 
           restoreScroll(); 
           if(isPageMode) initPagination();
         })
@@ -464,23 +364,22 @@ fileInput.addEventListener('change', (e) => {
 });
 
 // === 字体调节 ===
-const body = document.body;
 document.getElementById('inc').onclick = ()=> {
   body.style.fontSize = (parseInt(getComputedStyle(body).fontSize) + 2) + 'px';
-  document.querySelectorAll('button, label').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)+2+'px');
-  if(isPageMode && originFullText) initPagination(); 
+  document.querySelectorAll('button, #fileLabel').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)+2+'px');
+  if(isPageMode && parsedHtmlText) initPagination(); 
 };
 document.getElementById('dec').onclick = ()=> {
   body.style.fontSize = (parseInt(getComputedStyle(body).fontSize) - 2) + 'px';
-  document.querySelectorAll('button, label').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)-2+'px');
-  if(isPageMode && originFullText) initPagination(); 
+  document.querySelectorAll('button, #fileLabel').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)-2+'px');
+  if(isPageMode && parsedHtmlText) initPagination(); 
 };
 
 // === 背景与夜间模式 ===
 let bgIndex = 0;
 const backgrounds = ['#fffbe6','#ffffff','#e8f5e9']; 
 document.getElementById('bg').onclick = ()=> { 
-  if(night) document.getElementById('night').click(); // 如果在夜间模式，先退出
+  if(night) document.getElementById('night').click(); 
   bgIndex = (bgIndex+1) % backgrounds.length; 
   body.style.backgroundColor = backgrounds[bgIndex]; 
   body.style.color='#333'; 
@@ -504,7 +403,7 @@ document.getElementById('night').onclick = ()=> {
 const progressDiv = document.getElementById('progress');
 window.addEventListener('scroll', ()=> { 
   if(!isPageMode){
-    const scrollHeight = document.body.scrollHeight - window.innerHeight;
+    const scrollHeight = body.scrollHeight - window.innerHeight;
     const percent = scrollHeight > 0 ? Math.min(100, Math.round((window.scrollY / scrollHeight) * 100)) : 0; 
     progressDiv.innerText = percent + '%'; 
   }
@@ -513,9 +412,11 @@ window.addEventListener('scroll', ()=> {
 const controls = document.getElementById('controls');
 let hideTimeout;
 window.addEventListener('scroll', ()=> { 
-  controls.style.opacity = '0'; 
-  clearTimeout(hideTimeout); 
-  hideTimeout = setTimeout(()=> { controls.style.opacity='1'; }, 1000); 
+  if(!body.classList.contains('page-mode-active')) {
+    controls.style.opacity = '0'; 
+    clearTimeout(hideTimeout); 
+    hideTimeout = setTimeout(()=> { controls.style.opacity='1'; }, 1000); 
+  }
 });
 
 let scrollSaveTimeout;
@@ -533,16 +434,6 @@ function savePagePos(){
     localStorage.setItem('page_'+currentFileName, currentPage);
   }
 }
-  
-document.getElementById('hideCtrl').onclick = function(){
-    if(controls.style.opacity === '0'){
-        controls.style.opacity = '1';
-        this.innerText = '隐藏栏';
-    }else{
-        controls.style.opacity = '0';
-        this.innerText = '显示栏';
-    }
-};
   
 function restoreScroll() { 
   if(currentFileName) { 
