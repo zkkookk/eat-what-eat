@@ -78,6 +78,30 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
 
+  /* 重新分配点击热区比例 */
+  .left-zone { left: 0; width: 35%; }
+  .right-zone { right: 0; width: 35%; }
+  .center-zone { left: 35%; width: 30%; }
+
+  /* === 沉浸式阅读：隐藏 UI 时的状态 === */
+  /* 控制栏向下掉落并消失 */
+  body.ui-hidden #controls { 
+    transform: translate(-50%, 150px) !important; 
+    opacity: 0; 
+    pointer-events: none; 
+  }
+  /* 页码淡出 */
+  body.ui-hidden #pageInfo { 
+    opacity: 0; 
+    pointer-events: none; 
+  }
+  /* 目录隐藏并向右滑出 */
+  body.ui-hidden #toc { 
+    opacity: 0; 
+    pointer-events: none; 
+    transform: translateX(20px); 
+  }
+
   /* === 夜间模式全局适配 === */
   body.night-mode #controls { background: rgba(40, 40, 40, 0.85); border-color: rgba(255,255,255,0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
   body.night-mode #controls button { color: #aaa; }
@@ -145,6 +169,7 @@
 
 <div id="pageReader">
   <div class="click-zone left-zone" id="prevPageBtn"></div>
+  <div class="click-zone center-zone" id="centerToggleBtn"></div>
   <div class="click-zone right-zone" id="nextPageBtn"></div>
   <div id="pageModeWrapper">
     <div id="pageContent"></div>
@@ -318,6 +343,53 @@ function goNextPage() {
 document.getElementById('prevPageBtn').onclick = goPrevPage;
 document.getElementById('nextPageBtn').onclick = goNextPage;
 
+// === 沉浸式：点击屏幕中央呼出/隐藏 UI ===
+document.getElementById('centerToggleBtn').onclick = () => {
+  document.body.classList.toggle('ui-hidden');
+  
+  // 如果隐藏了 UI，顺手把原本用 display 控制的目录也关掉，防止状态混乱
+  if(document.body.classList.contains('ui-hidden') && toc.style.display === 'block') {
+    toc.style.display = 'none';
+  }
+};
+
+// 额外小优化：为了让体验更好，进入翻页模式时，默认自动收起 UI（沉浸模式）
+// 找到原来的 modeToggle 点击事件，在 if(isPageMode){ ... } 里面加上这一句：
+// document.body.classList.add('ui-hidden');
+document.getElementById('modeToggle').onclick = ()=>{
+  isPageMode = !isPageMode;
+  if(isPageMode){
+    document.body.classList.add('page-mode-active'); 
+    
+    // 新增：进入翻页时，默认进入沉浸无 UI 状态
+    document.body.classList.add('ui-hidden'); 
+    
+    document.getElementById('topHeader').style.display = 'none'; 
+    document.getElementById('progress').style.display = 'none'; 
+    document.getElementById('pageInfo').style.display = 'block'; 
+
+    readerDiv.style.display = 'none';
+    pageReaderDiv.style.display = 'block';
+    
+    let savedPage = localStorage.getItem('page_'+currentFileName);
+    if(savedPage) currentPage = parseInt(savedPage);
+    
+    initPagination(); 
+  }else{
+    document.body.classList.remove('page-mode-active'); 
+    
+    // 新增：退出翻页时，恢复 UI 显示
+    document.body.classList.remove('ui-hidden');
+    
+    document.getElementById('topHeader').style.display = 'flex'; 
+    document.getElementById('progress').style.display = 'block'; 
+    document.getElementById('pageInfo').style.display = 'none'; 
+
+    readerDiv.style.display = 'block';
+    pageReaderDiv.style.display = 'none';
+    restoreScroll();
+  }
+}; 
 
 // === 窗口大小改变时自动重新排版 ===
 let resizeTimer;
