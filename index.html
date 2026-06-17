@@ -21,39 +21,73 @@
     overflow: hidden; 
   }
 
-  /* 取消首行缩进 */
-  #reader {
-    white-space: pre-wrap; margin-top: 10px;text-indent: 2em;
-  }
+  /* 取消首行缩进与平滑过渡 */
+  body { transition: background-color 0.4s, color 0.4s; }
+  #reader { white-space: pre-wrap; margin-top: 10px; text-indent: 2em; }
   
-  #controls {
-    position: fixed; bottom: 10px; left: 10px; right: 10px;
-    display: flex; justify-content: space-between; gap: 6px;
-    transition: opacity 0.3s;
-    font-size: 13px;
-    flex-wrap: wrap;
-    z-index: 999;
+  /* 顶部标题与按钮排版 */
+  .header-area { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+  .header-area h2 { margin: 0; font-size: 1.5em; font-weight: 600; color: inherit; }
+  #fileLabel {
+    background: #f0c14b; color: #333; padding: 8px 18px; 
+    border-radius: 20px; font-size: 14px; font-weight: bold;
+    box-shadow: 0 4px 10px rgba(240, 193, 75, 0.3); transition: all 0.2s; cursor: pointer;
   }
-  #progress {
-    position: fixed; top: 5px; right: 10px; font-size: 14px; color: #666; z-index: 999;
-  }
-  #pageInfo {
-    position: fixed; top: 5px; left: 10px; font-size: 14px; color: #666; z-index: 999;
-  }
-  #toc {
-    position: fixed; right: 5px; top: 50px; background: #fffbe6;
-    border: 1px solid #ccc; padding: 10px;
-    max-height: 80%; overflow-y: auto; z-index: 1000;
-    display: none;
-  }
-  #toc span { display: block; cursor: pointer; margin-bottom: 5px; }
-  button {
-    padding: 5px 10px; border-radius: 4px; border: none;
-    background: #f0c14b; color: #000; font-size: 13px;
-    cursor: pointer;
-  }
+  #fileLabel:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(240, 193, 75, 0.5); }
   input[type="file"] { display: none; }
 
+  /* 顶部状态栏（页码与进度） */
+  .status-text {
+    position: fixed; top: 15px; font-size: 12px; font-weight: 500;
+    color: #999; z-index: 998; letter-spacing: 1px; transition: opacity 0.3s;
+  }
+  #pageInfo { left: 20px; }
+  #progress { right: 20px; }
+
+  /* 现代化毛玻璃控制面板 */
+  #controls {
+    position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+    background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    padding: 10px 20px; border-radius: 40px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid rgba(255,255,255,0.4);
+    display: flex; gap: 10px; align-items: center; z-index: 999; transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  #controls button {
+    background: transparent; color: #555; border: none; font-size: 14px; font-weight: 500;
+    padding: 8px 14px; border-radius: 20px; cursor: pointer; transition: all 0.2s;
+  }
+  #controls button:hover { background: rgba(0,0,0,0.05); color: #000; }
+  /* 面板内部的分割线 */
+  .divider { width: 1px; height: 18px; background: rgba(0,0,0,0.1); margin: 0 5px; }
+
+  /* 目录侧边栏美化 */
+  #toc {
+    position: fixed; right: 20px; top: 80px; bottom: 100px; width: 280px;
+    background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px);
+    border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); border: 1px solid rgba(0,0,0,0.05);
+    padding: 20px; overflow-y: auto; z-index: 1000; display: none; transition: all 0.3s ease;
+  }
+  #toc span { 
+    padding: 10px 12px; border-radius: 8px; transition: all 0.2s;
+    font-size: 14px; border-bottom: 1px solid rgba(0,0,0,0.03); color: #555;
+  }
+  #toc span:hover { background: rgba(0,0,0,0.04); padding-left: 18px; color: #000; }
+
+  /* 滚动条美化 */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 10px; }
+
+  /* === 夜间模式全局适配 === */
+  body.night-mode #controls { background: rgba(40, 40, 40, 0.85); border-color: rgba(255,255,255,0.05); box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  body.night-mode #controls button { color: #aaa; }
+  body.night-mode #controls button:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  body.night-mode .divider { background: rgba(255,255,255,0.1); }
+  body.night-mode #toc { background: rgba(30, 30, 30, 0.95); border-color: rgba(255,255,255,0.05); }
+  body.night-mode #toc span { border-color: rgba(255,255,255,0.05); color: #aaa; }
+  body.night-mode #toc span:hover { background: rgba(255,255,255,0.05); color: #fff; }
+  body.night-mode ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); }
+  
   /* === 全新的翻页模式样式 === */
   #pageReader {
     width: 100%;
@@ -101,9 +135,11 @@
 </head>
 <body>
 
-<h2>文档阅读器</h2>
-<label for="fileInput" id="fileLabel" style="background:#f0c14b;padding:6px 10px;border-radius:4px;cursor:pointer;font-size:13px;">选择</label>
-<input type="file" id="fileInput" accept=".txt,.docx">
+<div class="header-area" id="topHeader">
+  <h2>文档阅读器</h2>
+  <label for="fileInput" id="fileLabel">选择文档</label>
+  <input type="file" id="fileInput" accept=".txt,.docx">
+</div>
 
 <div id="reader">请选择 TXT 或 DOCX 文档开始阅读...</div>
 
@@ -116,17 +152,18 @@
 </div>
 
 <div id="toc"></div>
-<div id="progress">0%</div>
-<div id="pageInfo">页码 0/0</div>
+<div id="progress" class="status-text">0%</div>
+<div id="pageInfo" class="status-text" style="display:none;">页码 0/0</div>
 
 <div id="controls">
   <button id="inc">A+</button>
   <button id="dec">A-</button>
+  <div class="divider"></div>
   <button id="bg">背景</button>
   <button id="night">夜间</button>
+  <div class="divider"></div>
   <button id="toggleTOC">目录</button>
   <button id="modeToggle">翻页</button>
-  <button id="hideCtrl">-</button>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.4.2/mammoth.browser.min.js"></script>
@@ -176,12 +213,24 @@ function generateTOC(text) {
     span.onclick = () => {
       const target = document.getElementById(anchorId);
       if(target) {
-        if(isPageMode) {
-          // 【翻页模式下】根据元素的横向偏移量，精准计算它在第几页
-          let targetPage = Math.floor(target.offsetLeft / moveDistance);
+       if(isPageMode) {
+          // 【翻页模式下】获取目标和容器的真实渲染物理边界
+          const targetRect = target.getBoundingClientRect();
+          const contentRect = document.getElementById('pageContent').getBoundingClientRect();
+          
+          // 计算目标元素距离第一页最左侧的真实像素距离
+          const relativeX = targetRect.left - contentRect.left;
+          
+          // 除以每次滑动的距离，得出绝对精准的页码
+          let targetPage = Math.floor(relativeX / moveDistance);
+          
+          // 防越界保护
+          if (targetPage < 0) targetPage = 0;
+          if (targetPage >= totalPages) targetPage = totalPages - 1;
+          
           currentPage = targetPage;
           updatePageView();
-        } else {
+        }else {
           // 【滚动模式下】使用传统的滚动跳转
           window.scrollTo({top: target.offsetTop, behavior: 'smooth'});
         }
@@ -285,9 +334,10 @@ window.addEventListener('resize', () => {
 document.getElementById('modeToggle').onclick = ()=>{
   isPageMode = !isPageMode;
   if(isPageMode){
-    document.body.classList.add('page-mode-active'); // 锁死原生滚动
-    document.querySelector('h2').style.display = 'none'; // 隐藏大标题腾出空间
-    document.getElementById('fileLabel').style.display = 'none'; 
+    document.body.classList.add('page-mode-active'); 
+    document.getElementById('topHeader').style.display = 'none'; // 隐藏顶部区域
+    document.getElementById('progress').style.display = 'none'; // 隐藏百分比进度
+    document.getElementById('pageInfo').style.display = 'block'; // 显示页码
 
     readerDiv.style.display = 'none';
     pageReaderDiv.style.display = 'block';
@@ -297,9 +347,10 @@ document.getElementById('modeToggle').onclick = ()=>{
     
     initPagination(); 
   }else{
-    document.body.classList.remove('page-mode-active'); // 恢复原生滚动
-    document.querySelector('h2').style.display = 'block';
-    document.getElementById('fileLabel').style.display = 'inline-block'; 
+    document.body.classList.remove('page-mode-active'); 
+    document.getElementById('topHeader').style.display = 'flex'; // 恢复顶部区域
+    document.getElementById('progress').style.display = 'block'; 
+    document.getElementById('pageInfo').style.display = 'none'; 
 
     readerDiv.style.display = 'block';
     pageReaderDiv.style.display = 'none';
@@ -355,8 +406,9 @@ document.getElementById('dec').onclick = ()=> {
 
 // === 背景与夜间模式 ===
 let bgIndex = 0;
-const backgrounds = ['#fffbe6','#ffffff','#e8f5e9']; // 加了一个护眼绿
+const backgrounds = ['#fffbe6','#ffffff','#e8f5e9']; 
 document.getElementById('bg').onclick = ()=> { 
+  if(night) document.getElementById('night').click(); // 如果在夜间模式，先退出
   bgIndex = (bgIndex+1) % backgrounds.length; 
   body.style.backgroundColor = backgrounds[bgIndex]; 
   body.style.color='#333'; 
@@ -364,11 +416,13 @@ document.getElementById('bg').onclick = ()=> {
 
 let night = false;
 document.getElementById('night').onclick = ()=> { 
-  night=!night; 
+  night = !night; 
   if(night) { 
+    body.classList.add('night-mode');
     body.style.backgroundColor='#1c1c1c'; 
-    body.style.color='#999'; // 夜间模式文字暗一点更护眼
+    body.style.color='#999'; 
   } else { 
+    body.classList.remove('night-mode');
     body.style.backgroundColor=backgrounds[bgIndex]; 
     body.style.color='#333'; 
   } 
