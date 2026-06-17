@@ -18,23 +18,20 @@
   #reader {
     white-space: pre-wrap; margin-top: 10px;text-indent: 2em;
   }
-  #pageReader {
-    margin-top: 10px;
-    min-height: 80vh;
-    white-space: pre-wrap;
-  }
+  
   #controls {
     position: fixed; bottom: 10px; left: 10px; right: 10px;
     display: flex; justify-content: space-between; gap: 6px;
     transition: opacity 0.3s;
     font-size: 13px;
     flex-wrap: wrap;
+    z-index: 999;
   }
   #progress {
-    position: fixed; top: 5px; right: 10px; font-size: 14px; color: #666;
+    position: fixed; top: 5px; right: 10px; font-size: 14px; color: #666; z-index: 999;
   }
   #pageInfo {
-    position: fixed; top: 5px; left: 10px; font-size: 14px; color: #666;
+    position: fixed; top: 5px; left: 10px; font-size: 14px; color: #666; z-index: 999;
   }
   #toc {
     position: fixed; right: 5px; top: 50px; background: #fffbe6;
@@ -48,20 +45,38 @@
     background: #f0c14b; color: #000; font-size: 13px;
   }
   input[type="file"] { display: none; }
-  /* 翻页点击区域 */
-  .page-wrap {
+
+  /* === 全新的翻页模式样式（CSS多列布局） === */
+  #pageReader {
+    margin-top: 10px;
     width: 100%;
-    height: 85vh;
     position: relative;
+    display: none; /* 默认隐藏 */
   }
-  .page-left, .page-right {
-    position: absolute;
-    top: 0;
-    width: 45%;
+  #pageModeWrapper {
+    width: 100%;
+    height: 85vh; /* 固定阅读可视高度 */
+    overflow: hidden; /* 隐藏屏幕右侧未读的列 */
+  }
+  #pageContent {
     height: 100%;
+    column-gap: 20px; /* 两页之间的间距 */
+    column-fill: auto;
+    transition: transform 0.3s ease-out; /* 丝滑的翻页滑动动画 */
+    text-align: justify;
+    word-break: break-word;
   }
-  .page-left { left: 0; }
-  .page-right { right: 0; }
+  /* 翻页透明点击区域 */
+  .click-zone {
+    position: absolute;
+    top: 0; bottom: 0;
+    width: 45%;
+    z-index: 10;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent; 
+  }
+  .left-zone { left: 0; }
+  .right-zone { right: 0; }
 </style>
 </head>
 <body>
@@ -71,7 +86,14 @@
 <input type="file" id="fileInput" accept=".txt,.docx">
 
 <div id="reader">请选择 TXT 或 DOCX 文档开始阅读...</div>
-<div id="pageReader" style="display:none;"></div>
+
+<div id="pageReader">
+  <div class="click-zone left-zone" id="prevPageBtn"></div>
+  <div class="click-zone right-zone" id="nextPageBtn"></div>
+  <div id="pageModeWrapper">
+    <div id="pageContent"></div>
+  </div>
+</div>
 
 <div id="toc"></div>
 <div id="progress">0%</div>
@@ -92,29 +114,13 @@
 <script>
 let currentFileName = null;
 let originFullText = "";
-// 翻页变量
-let isPageMode = false;
-// 动态计算一屏能容纳多少字符
-function getPageCharCount() {
-    // 阅读可视高度
-    const viewHeight = window.innerHeight - 120;
-    // 当前字号、行高
-    const fs = parseFloat(getComputedStyle(document.body).fontSize);
-    const lh = parseFloat(getComputedStyle(document.body).lineHeight);
-    // 估算一行字数、总行数
-    const lineNum = Math.floor(viewHeight / lh);
-    const oneLineChar = Math.floor(window.innerWidth / fs / 1.3);
-    return Math.floor(lineNum * oneLineChar);
-}
-let pageList = [];
-let currentPage = 0;
 
 const readerDiv = document.getElementById('reader');
 const pageReaderDiv = document.getElementById('pageReader');
 const toc = document.getElementById('toc');
 const pageInfo = document.getElementById('pageInfo');
 
-// 目录显示/隐藏按钮
+// === 目录功能 ===
 document.getElementById('toggleTOC').onclick = () => {
   if(toc.style.display === 'none' || toc.style.display === '') {
     toc.style.display = 'block';
@@ -123,7 +129,6 @@ document.getElementById('toggleTOC').onclick = () => {
   }
 };
 
-// 生成目录
 function generateTOC(text) {
   toc.innerHTML = '';
   toc.style.display = 'block';
@@ -152,67 +157,78 @@ function generateTOC(text) {
   return modifiedText;
 }
 
-function splitPage(text) {
-  pageList = [];
-  let start = 0;
-  // 动态获取当前屏该放多少字
-  let count = getPageCharCount();
-  while (start < text.length) {
-    let end = start + count;
-    // 尽量在换行/标点处截断，不拆词语
-    let sub = text.slice(start, end);
-    let lastBreak = Math.max(sub.lastIndexOf("\n"), sub.lastIndexOf("，"), sub.lastIndexOf("。"));
-    if (lastBreak > count * 0.6) {
-        end = start + lastBreak + 1;
-    }
-    pageList.push(text.slice(start, end));
-    start = end;
-  }
-  currentPage = 0;
+// === 全新翻页算法 ===
+let isPageMode = false;
+let currentPage = 0;
+let totalPages = 1;
+let moveDistance = 0; 
+
+function initPagination() {
+  const content = document.getElementById('pageContent');
+  const wrapper = document.getElementById('pageModeWrapper');
+  
+  // 将全文塞入内容区，带上首行缩进和预留换行
+  content.innerHTML = `<div style="text-indent: 2em; white-space: pre-wrap;">${originFullText}</div>`;
+  
+  // 获取容器宽度并设置多列排版
+  const wrapperWidth = wrapper.clientWidth;
+  const gap = 20; // 必须和 CSS 里的 column-gap 保持一致
+  content.style.columnWidth = `${wrapperWidth}px`;
+  
+  // 计算每次翻页滑动的准确距离 (单列宽 + 间隙)
+  moveDistance = wrapperWidth + gap;
+  
+  // 延时等待 DOM 渲染完成，计算总页数
+  setTimeout(() => {
+    totalPages = Math.ceil(content.scrollWidth / moveDistance);
+    if(totalPages <= 0) totalPages = 1;
+    
+    // 如果调整字号导致总页数变少，防止当前页码越界
+    if(currentPage >= totalPages) currentPage = totalPages - 1;
+    
+    updatePageView();
+  }, 50);
 }
 
-// 渲染当前页
-function renderPage() {
-  if(pageList.length === 0) return;
-  pageInfo.innerText = `页码 ${currentPage+1}/${pageList.length}`;
-  pageReaderDiv.innerHTML = `
-    <div class="page-wrap">
-      <div class="page-left" id="prevPageBtn"></div>
-      <div class="page-right" id="nextPageBtn"></div>
-      <div style="padding:0 10px;">${pageList[currentPage]}</div>
-    </div>
-  `;
-  // 绑定翻页点击
-  document.getElementById('prevPageBtn').onclick = goPrevPage;
-  document.getElementById('nextPageBtn').onclick = goNextPage;
+function updatePageView() {
+  const content = document.getElementById('pageContent');
+  // 向左平移实现翻页动画
+  content.style.transform = `translateX(-${currentPage * moveDistance}px)`;
+  
+  pageInfo.innerText = `页码 ${currentPage + 1}/${totalPages}`;
+  savePagePos();
 }
 
 function goPrevPage() {
-  if(currentPage > 0) {
+  if (currentPage > 0) {
     currentPage--;
-    renderPage();
-    savePagePos();
-  }
-}
-function goNextPage() {
-  if(currentPage < pageList.length - 1) {
-    currentPage++;
-    renderPage();
-    savePagePos();
+    updatePageView();
   }
 }
 
-// 模式切换
+function goNextPage() {
+  if (currentPage < totalPages - 1) {
+    currentPage++;
+    updatePageView();
+  }
+}
+
+document.getElementById('prevPageBtn').onclick = goPrevPage;
+document.getElementById('nextPageBtn').onclick = goNextPage;
+
+
+// === 模式切换 ===
 document.getElementById('modeToggle').onclick = ()=>{
   isPageMode = !isPageMode;
   if(isPageMode){
     readerDiv.style.display = 'none';
     pageReaderDiv.style.display = 'block';
-    splitPage(originFullText);
+    
     // 恢复记忆页码
     let savedPage = localStorage.getItem('page_'+currentFileName);
     if(savedPage) currentPage = parseInt(savedPage);
-    renderPage();
+    
+    initPagination(); // 触发全新的排版引擎
   }else{
     readerDiv.style.display = 'block';
     pageReaderDiv.style.display = 'none';
@@ -220,7 +236,8 @@ document.getElementById('modeToggle').onclick = ()=>{
   }
 };
 
-// 读取文件
+// === 读取文件 ===
+const fileInput = document.getElementById('fileInput');
 fileInput.addEventListener('change', (e) => {
   const file = e.target.files[0];
   if(!file) return;
@@ -232,6 +249,7 @@ fileInput.addEventListener('change', (e) => {
       let htmlText = generateTOC(originFullText);
       readerDiv.innerHTML = htmlText;
       restoreScroll();
+      if(isPageMode) initPagination();
     };
     fr.readAsText(file, 'utf-8');
   } else if(file.name.endsWith('.docx')) {
@@ -243,6 +261,7 @@ fileInput.addEventListener('change', (e) => {
           let htmlText = generateTOC(originFullText);
           readerDiv.innerHTML = htmlText; 
           restoreScroll(); 
+          if(isPageMode) initPagination();
         })
         .catch(()=> alert('DOCX 解析失败'));
     };
@@ -250,28 +269,24 @@ fileInput.addEventListener('change', (e) => {
   } else alert('只支持 TXT/DOCX');
 });
 
-// 字体调节
+// === 字体调节 ===
 const body = document.body;
 document.getElementById('inc').onclick = ()=> {
   body.style.fontSize = (parseInt(getComputedStyle(body).fontSize) + 2) + 'px';
   document.querySelectorAll('button, label').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)+2+'px');
-  // 字号改变后，重新自适应分页
-if(isPageMode && originFullText){
-    splitPage(originFullText);
-    renderPage();
-}
+  if(isPageMode && originFullText){
+    initPagination(); // 字号改变后重新排版
+  }
 };
 document.getElementById('dec').onclick = ()=> {
   body.style.fontSize = (parseInt(getComputedStyle(body).fontSize) - 2) + 'px';
   document.querySelectorAll('button, label').forEach(el=> el.style.fontSize = parseInt(getComputedStyle(el).fontSize)-2+'px');
-  // 字号改变后，重新自适应分页
-if(isPageMode && originFullText){
-    splitPage(originFullText);
-    renderPage();
-}
+  if(isPageMode && originFullText){
+    initPagination(); // 字号改变后重新排版
+  }
 };
 
-// 背景切换
+// === 背景与夜间模式 ===
 let bgIndex = 0;
 const backgrounds = ['#fffbe6','#ffffff'];
 document.getElementById('bg').onclick = ()=> { 
@@ -280,7 +295,6 @@ document.getElementById('bg').onclick = ()=> {
   body.style.color='#333'; 
 };
 
-// 夜间模式
 let night = false;
 document.getElementById('night').onclick = ()=> { 
   night=!night; 
@@ -293,11 +307,12 @@ document.getElementById('night').onclick = ()=> {
   } 
 };
 
-// 阅读百分比
+// === 阅读进度与存储 ===
 const progressDiv = document.getElementById('progress');
 window.addEventListener('scroll', ()=> { 
   if(!isPageMode){
-    const percent = Math.min(100, Math.round((window.scrollY / (document.body.scrollHeight - window.innerHeight)) * 100)); 
+    const scrollHeight = document.body.scrollHeight - window.innerHeight;
+    const percent = scrollHeight > 0 ? Math.min(100, Math.round((window.scrollY / scrollHeight) * 100)) : 0; 
     progressDiv.innerText = percent + '%'; 
   }
 });
@@ -346,7 +361,7 @@ function restoreScroll() {
     const pos = localStorage.getItem('scrollPos_' + currentFileName); 
     if(pos) window.scrollTo(0, parseInt(pos)); 
   }
-  // 顺便恢复页码
+  // 恢复页码
   let savedPage = localStorage.getItem('page_'+currentFileName);
   if(savedPage) currentPage = parseInt(savedPage);
 }
